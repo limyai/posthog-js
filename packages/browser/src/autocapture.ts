@@ -10,6 +10,8 @@ import {
     isSensitiveElement,
     makeSafeText,
     shouldCaptureDomEvent,
+    getElementAndParentsForElement,
+    getMatchingSelector,
     shouldCaptureElement,
     shouldCaptureRageclick,
     shouldCaptureValue,
@@ -389,6 +391,14 @@ export class Autocapture {
 
             if (explicitNoCapture) {
                 return false
+            }
+
+            if (this._config.css_selector_allowlist && this._config.css_selector_allowlist_extra_properties) {
+                const {targetElementList } = getElementAndParentsForElement(target, isCopyAutocapture)
+                const matchingSelector = getMatchingSelector(targetElementList, this._config.css_selector_allowlist)
+                if (matchingSelector) {
+                    extend(props, this._config.css_selector_allowlist_extra_properties?.[matchingSelector] ?? {})
+                }
             }
 
             const elementSelectors = this.getElementSelectors(target)

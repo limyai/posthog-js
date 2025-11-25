@@ -125,6 +125,14 @@ function checkIfElementTreePassesElementAllowList(
     return false
 }
 
+export function getMatchingSelector(elements: Element[], selectorList: string[] | undefined): string | undefined {
+    if (isUndefined(selectorList)) {
+        return undefined
+    }
+
+    return selectorList.find((selector) => elements.some((element) => element.matches(selector))) ?? undefined
+}
+
 /*
  if there is no selector list (i.e. it is undefined), then any elements matches
  if there is an empty list, then no elements match
@@ -135,14 +143,7 @@ function checkIfElementsMatchCSSSelector(elements: Element[], selectorList: stri
         // everything is allowed, when there is no selector list
         return true
     }
-
-    for (const el of elements) {
-        if (selectorList.some((selector) => el.matches(selector))) {
-            return true
-        }
-    }
-
-    return false
+    return !!getMatchingSelector(elements, selectorList)
 }
 
 export function getParentElement(curEl: Element): Element | false {
@@ -229,7 +230,7 @@ const cannotCheckForAutocapture = (el: Element | null) => {
     return !el || isTag(el, 'html') || !isElementNode(el)
 }
 
-const getElementAndParentsForElement = (el: Element, captureOnAnyElement: false | true | undefined) => {
+export function getElementAndParentsForElement(el: Element, captureOnAnyElement: false | true | undefined) {
     if (!window || cannotCheckForAutocapture(el)) {
         return { parentIsUsefulElement: false, targetElementList: [] }
     }

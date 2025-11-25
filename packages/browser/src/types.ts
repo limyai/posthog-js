@@ -104,6 +104,13 @@ export interface AutocaptureConfig {
     css_selector_allowlist?: string[]
 
     /**
+     * Additional attributes to add to events captured via css_selector_allowlist
+     * e.g. { '.some-class': { 'custom-id': '123' } }
+     * we will add the additional properties to the event captured via css_selector_allowlist, so the event will have the property custom-id="123"
+     */
+    css_selector_allowlist_extra_properties?: Record<string, Record<string, string | number | boolean>>
+
+    /**
      * Exclude certain element attributes from autocapture
      * E.g. ['aria-label'] or [data-attr-pii]
      */
