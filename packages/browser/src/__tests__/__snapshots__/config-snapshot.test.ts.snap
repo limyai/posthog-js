@@ -43,6 +43,10 @@ exports[`config snapshot for PostHogConfig 1`] = `
         "undefined",
         "string[]"
       ],
+      "css_selector_allowlist_extra_properties": [
+        "undefined",
+        "Record<string, Record<string, string | number | boolean>>"
+      ],
       "element_attribute_ignorelist": [
         "undefined",
         "string[]"
