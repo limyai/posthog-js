@@ -343,6 +343,37 @@ export class Autocapture {
         return !disabledClient && !disabledServer
     }
 
+    private _addExtraPropertiesToProps(props: Properties, matchingSelector: string): void {
+        if (
+            !this._config.css_selector_allowlist_extra_properties ||
+            !matchingSelector ||
+            !this._config.css_selector_allowlist_extra_properties[matchingSelector]
+        ) {
+            return
+        }
+
+        const currentUrl = props?.['$current_url'] || window?.location.href
+        const matchingConfig = this._config.css_selector_allowlist_extra_properties[matchingSelector]
+            .sort((a, b) => a.priority - b.priority)
+            .find((extraPropertiesConfig) => {
+                if (extraPropertiesConfig.strategy === 'default') {
+                    return true
+                }
+                if (extraPropertiesConfig.strategy === 'urlContains' && extraPropertiesConfig.contains) {
+                    const containsRegex = new RegExp(extraPropertiesConfig.contains)
+                    return (
+                        currentUrl &&
+                        (currentUrl.includes(extraPropertiesConfig.contains) || containsRegex.test(currentUrl))
+                    )
+                }
+                return false
+            })
+
+        if (matchingConfig) {
+            extend(props, matchingConfig.properties)
+        }
+    }
+
     private _captureEvent(e: Event, eventName: EventName = '$autocapture'): boolean | void {
         if (!this.isEnabled) {
             return
@@ -394,10 +425,10 @@ export class Autocapture {
             }
 
             if (this._config.css_selector_allowlist && this._config.css_selector_allowlist_extra_properties) {
-                const {targetElementList } = getElementAndParentsForElement(target, isCopyAutocapture)
+                const { targetElementList } = getElementAndParentsForElement(target, isCopyAutocapture)
                 const matchingSelector = getMatchingSelector(targetElementList, this._config.css_selector_allowlist)
                 if (matchingSelector) {
-                    extend(props, this._config.css_selector_allowlist_extra_properties?.[matchingSelector] ?? {})
+                    this._addExtraPropertiesToProps(props, matchingSelector)
                 }
             }
 

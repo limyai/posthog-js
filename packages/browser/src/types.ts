@@ -48,6 +48,13 @@ export interface CaptureResult {
 export type AutocaptureCompatibleElement = 'a' | 'button' | 'form' | 'input' | 'select' | 'textarea' | 'label'
 export type DomAutocaptureEvents = 'click' | 'change' | 'submit'
 
+export type AutocaptureSelectorExtraPropertiesConfig = {
+    strategy: 'default' | 'urlContains'
+    priority: number
+    contains?: string
+    properties: Record<string, string | number | boolean>
+}
+
 /**
  * If an array is passed for an allowlist, autocapture events will only be sent for elements matching
  * at least one of the elements in the array. Multiple allowlists can be used
@@ -108,7 +115,7 @@ export interface AutocaptureConfig {
      * e.g. { '.some-class': { 'custom-id': '123' } }
      * we will add the additional properties to the event captured via css_selector_allowlist, so the event will have the property custom-id="123"
      */
-    css_selector_allowlist_extra_properties?: Record<string, Record<string, string | number | boolean>>
+    css_selector_allowlist_extra_properties?: Record<string, AutocaptureSelectorExtraPropertiesConfig[]>
 
     /**
      * Exclude certain element attributes from autocapture
