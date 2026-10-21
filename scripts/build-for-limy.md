@@ -1,19 +1,18 @@
+# Building posthog-js for the Limy SDK
 
-# Install dependencies (this should work in the actual repo)
-cd ../
+> Fork-specific (limyai/posthog-js). Do not upstream.
+
+Set `LIMY_SDK_DIR` to the path of your local Limy SDK checkout, then run from the repository root:
+
+```bash
+: "${LIMY_SDK_DIR:?set LIMY_SDK_DIR}"
+
 pnpm install
 
-# Build the core package first
-cd packages/core
-pnpm build
+# Build core first, then browser (browser depends on core)
+pnpm --filter=@posthog/core build
+pnpm --filter=posthog-js build
 
-# Build the browser package
-cd ../browser
-pnpm build
-
-# Verify dist files exist
-ls -la dist/
-
-npm pack
-
-cp posthog-js-1.298.1.tgz  ./PATH_TO_LIMY_SDK_FOLDER/packages/
+# pnpm pack (not npm pack) rewrites workspace:* deps to real versions
+(cd packages/browser && pnpm pack --pack-destination "$LIMY_SDK_DIR/packages/")
+```

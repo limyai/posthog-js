@@ -27,6 +27,7 @@ import { isBoolean, isFunction, isNull, isObject } from '@posthog/core'
 import { createLogger } from './utils/logger'
 import { document, window } from './utils/globals'
 import { convertToURL } from './utils/request-utils'
+import { isMatchingRegex } from './utils/regex-utils'
 import { isDocumentFragment, isElementNode, isTag, isTextNode } from './utils/element-utils'
 import { includes } from '@posthog/core'
 
@@ -353,20 +354,18 @@ export class Autocapture {
         }
 
         const currentUrl = props?.['$current_url'] || window?.location.href
-        const matchingConfig = this._config.css_selector_allowlist_extra_properties[matchingSelector]
+        const matchingConfig = [...this._config.css_selector_allowlist_extra_properties[matchingSelector]]
             .sort((a, b) => a.priority - b.priority)
             .find((extraPropertiesConfig) => {
                 if (extraPropertiesConfig.strategy === 'default') {
                     return true
                 }
-                if (extraPropertiesConfig.strategy === 'urlContains' && extraPropertiesConfig.contains) {
-                    const containsRegex = new RegExp(extraPropertiesConfig.contains)
-                    return (
-                        currentUrl &&
-                        (currentUrl.includes(extraPropertiesConfig.contains) || containsRegex.test(currentUrl))
-                    )
-                }
-                return false
+                const { contains } = extraPropertiesConfig
+                return (
+                    !!currentUrl &&
+                    !!contains &&
+                    (currentUrl.includes(contains) || isMatchingRegex(currentUrl, contains))
+                )
             })
 
         if (matchingConfig) {

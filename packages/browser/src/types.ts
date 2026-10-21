@@ -48,12 +48,18 @@ export interface CaptureResult {
 export type AutocaptureCompatibleElement = 'a' | 'button' | 'form' | 'input' | 'select' | 'textarea' | 'label'
 export type DomAutocaptureEvents = 'click' | 'change' | 'submit'
 
+/**
+ * A rule describing extra properties to attach to an autocapture event matched via `css_selector_allowlist`.
+ *
+ * - `default`: always matches
+ * - `urlContains`: matches when the current URL contains `contains` as a substring,
+ *   or when `contains` (interpreted as a regex) matches the current URL
+ */
 export type AutocaptureSelectorExtraPropertiesConfig = {
-    strategy: 'default' | 'urlContains'
+    /** Rules are evaluated in ascending order; the lowest priority that matches wins and only it is applied */
     priority: number
-    contains?: string
     properties: Record<string, string | number | boolean>
-}
+} & ({ strategy: 'default' } | { strategy: 'urlContains'; contains: string })
 
 /**
  * If an array is passed for an allowlist, autocapture events will only be sent for elements matching
@@ -111,9 +117,20 @@ export interface AutocaptureConfig {
     css_selector_allowlist?: string[]
 
     /**
-     * Additional attributes to add to events captured via css_selector_allowlist
-     * e.g. { '.some-class': { 'custom-id': '123' } }
-     * we will add the additional properties to the event captured via css_selector_allowlist, so the event will have the property custom-id="123"
+     * Extra properties to add to events captured via css_selector_allowlist,
+     * keyed by a selector from css_selector_allowlist, with an array of rules as the value
+     * e.g.
+     * {
+     *   '.some-class': [
+     *     { strategy: 'urlContains', contains: '/dashboard', priority: 1, properties: { section: 'dashboard' } },
+     *     { strategy: 'default', priority: 2, properties: { section: 'other' } },
+     *   ],
+     * }
+     *
+     * Only the first css_selector_allowlist selector (in allowlist order) that matches the element or its parents is used.
+     * Within its rules, the matching rule with the lowest priority is applied; the others are ignored.
+     *
+     * @see AutocaptureSelectorExtraPropertiesConfig
      */
     css_selector_allowlist_extra_properties?: Record<string, AutocaptureSelectorExtraPropertiesConfig[]>
 

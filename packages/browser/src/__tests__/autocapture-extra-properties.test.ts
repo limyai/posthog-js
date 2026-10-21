@@ -147,7 +147,7 @@ describe('Autocapture with css_selector_allowlist_extra_properties', () => {
                         priority: 10,
                         properties: {
                             order: 'second',
-                            'second': true,
+                            second: true,
                             'priority-value': 10,
                         },
                     },
@@ -774,6 +774,48 @@ describe('Autocapture with css_selector_allowlist_extra_properties', () => {
             expect(captureCall.properties).not.toHaveProperty('should-not-appear')
             // Should have the property from priority 2 (default)
             expect(captureCall.properties).toHaveProperty('should-appear', true)
+        })
+
+        it('should not throw on an invalid regex in contains and should fall through', () => {
+            const button = document.createElement('button')
+            button.className = 'track-me'
+            document.body.appendChild(button)
+
+            posthog.config.autocapture = {
+                css_selector_allowlist: ['.track-me'],
+                css_selector_allowlist_extra_properties: {
+                    '.track-me': [
+                        { strategy: 'urlContains', priority: 1, contains: '/foo(', properties: { bad: true } },
+                        { strategy: 'default', priority: 2, properties: { fallback: true } },
+                    ],
+                },
+            }
+
+            simulateClick(button)
+
+            expect(beforeSendMock).toHaveBeenCalledTimes(1)
+            const captureCall = beforeSendMock.mock.calls[0][0]
+            expect(captureCall.properties).not.toHaveProperty('bad')
+            expect(captureCall.properties).toHaveProperty('fallback', true)
+        })
+
+        it('should not mutate the order of the configured rules', () => {
+            const button = document.createElement('button')
+            button.className = 'track-me'
+            document.body.appendChild(button)
+
+            const rules = [
+                { strategy: 'default' as const, priority: 2, properties: { a: 1 } },
+                { strategy: 'default' as const, priority: 1, properties: { b: 1 } },
+            ]
+            posthog.config.autocapture = {
+                css_selector_allowlist: ['.track-me'],
+                css_selector_allowlist_extra_properties: { '.track-me': rules },
+            }
+
+            simulateClick(button)
+
+            expect(rules.map((r) => r.priority)).toEqual([2, 1])
         })
 
         it('should handle window being undefined gracefully', () => {
