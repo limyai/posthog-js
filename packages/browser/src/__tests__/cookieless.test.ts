@@ -1,3 +1,4 @@
+import type { PostHog } from '../posthog-core'
 import type { PostHogConfig } from '../types'
 import { uuidv7 } from '../uuidv7'
 import { createPosthogInstance } from './helpers/posthog-instance'
@@ -313,6 +314,150 @@ describe('cookieless', () => {
             expect(beforeSendMock.mock.calls[3][0].properties.$window_id).toBe(undefined)
             expect(beforeSendMock.mock.calls[3][0].properties.$cookieless_mode).toEqual(true)
             expect(posthog.sessionRecording).toBeFalsy()
+        })
+
+        it('should start in cookieless mode when opt_out_capturing_by_default is set (regression for #2841)', async () => {
+            const { posthog, beforeSendMock } = await setup({
+                cookieless_mode: 'on_reject',
+                opt_out_capturing_by_default: true,
+            })
+            await delay(1) // wait for async initial pageview capture
+
+            expect(posthog.has_opted_out_capturing()).toEqual(true)
+            expect(posthog.get_explicit_consent_status()).toBe('pending')
+
+            expect(beforeSendMock).toBeCalledTimes(1)
+            const pageview = beforeSendMock.mock.calls[0][0]
+            expect(pageview.event).toBe('$pageview')
+            expect(pageview.properties.distinct_id).toEqual('$posthog_cookieless')
+            expect(pageview.properties.$device_id).toBe(null)
+            expect(pageview.properties.$cookieless_mode).toEqual(true)
+
+            posthog.capture(eventName, eventProperties)
+            expect(beforeSendMock).toBeCalledTimes(2)
+            const event = beforeSendMock.mock.calls[1][0]
+            expect(event.event).toBe(eventName)
+            expect(event.properties.distinct_id).toEqual('$posthog_cookieless')
+            expect(event.properties.$cookieless_mode).toEqual(true)
+        })
+
+        it('should switch from cookieless to non-cookieless on opt-in when opt_out_capturing_by_default is set', async () => {
+            const { posthog, beforeSendMock } = await setup({
+                cookieless_mode: 'on_reject',
+                opt_out_capturing_by_default: true,
+            })
+            await delay(1)
+            expect(beforeSendMock).toBeCalledTimes(1)
+            expect(beforeSendMock.mock.calls[0][0].properties.$cookieless_mode).toEqual(true)
+
+            posthog.opt_in_capturing()
+            posthog.capture(eventName, eventProperties)
+
+            expect(beforeSendMock).toBeCalledTimes(4)
+            expect(beforeSendMock.mock.calls[1][0].event).toBe('$opt_in')
+            const customEvent = beforeSendMock.mock.calls[beforeSendMock.mock.calls.length - 1][0]
+            expect(customEvent.event).toBe(eventName)
+            expect(customEvent.properties.distinct_id).toMatch(uuidV7Pattern)
+            expect(customEvent.properties.$cookieless_mode).toEqual(undefined)
+        })
+
+        it('should send one identified pageview on opt-in from pending opt_out_capturing_by_default', async () => {
+            const { posthog, beforeSendMock } = await setup({
+                cookieless_mode: 'on_reject',
+                opt_out_capturing_by_default: true,
+            })
+            await delay(1)
+            expect(beforeSendMock.mock.calls[0][0].event).toBe('$pageview')
+            expect(beforeSendMock.mock.calls[0][0].properties.$cookieless_mode).toEqual(true)
+
+            posthog.opt_in_capturing()
+
+            expect(beforeSendMock).toBeCalledTimes(3)
+            const optIn = beforeSendMock.mock.calls[1][0]
+            const pageview = beforeSendMock.mock.calls[2][0]
+            expect(optIn.event).toBe('$opt_in')
+            expect(pageview.event).toBe('$pageview')
+            for (const e of [optIn, pageview]) {
+                expect(e.properties.$cookieless_mode).toEqual(undefined)
+                expect(e.properties.distinct_id).toMatch(uuidV7Pattern)
+                expect(e.properties.$device_id).toEqual(e.properties.distinct_id)
+            }
+            expect(pageview.properties.distinct_id).toEqual(optIn.properties.distinct_id)
+            expect(pageview.properties.$prev_pageview_id).toBe(undefined)
+        })
+
+        describe('with history_change pageviews', () => {
+            let originalPushState: History['pushState']
+            let spaPosthog: PostHog | undefined
+
+            beforeEach(() => {
+                originalPushState = window.history.pushState
+                window.history.pushState = History.prototype.pushState
+            })
+
+            afterEach(() => {
+                spaPosthog?.historyAutocapture?.stop()
+                window.history.pushState = originalPushState
+            })
+
+            it('should send SPA pageviews as cookieless while consent is pending', async () => {
+                const { posthog, beforeSendMock } = await setup({
+                    cookieless_mode: 'on_reject',
+                    opt_out_capturing_by_default: true,
+                    capture_pageview: 'history_change',
+                })
+                spaPosthog = posthog
+                await delay(1)
+                beforeSendMock.mockClear()
+
+                window.history.pushState({}, '', '/spa-' + uuidv7())
+
+                expect(beforeSendMock).toBeCalledTimes(1)
+                const pageview = beforeSendMock.mock.calls[0][0]
+                expect(pageview.event).toBe('$pageview')
+                expect(pageview.properties.distinct_id).toEqual('$posthog_cookieless')
+                expect(pageview.properties.$cookieless_mode).toEqual(true)
+            })
+        })
+
+        it('should stay cookieless when opting out from pending opt_out_capturing_by_default', async () => {
+            const { posthog, beforeSendMock } = await setup({
+                cookieless_mode: 'on_reject',
+                opt_out_capturing_by_default: true,
+            })
+            await delay(1)
+
+            posthog.opt_out_capturing()
+            posthog.capture(eventName, eventProperties)
+
+            const event = beforeSendMock.mock.calls[beforeSendMock.mock.calls.length - 1][0]
+            expect(event.event).toBe(eventName)
+            expect(event.properties.distinct_id).toEqual('$posthog_cookieless')
+            expect(event.properties.$device_id).toBe(null)
+            expect(event.properties.$cookieless_mode).toEqual(true)
+        })
+
+        it('should not persist anything while consent is pending with opt_out_capturing_by_default', async () => {
+            const { posthog, beforeSendMock } = await setup({
+                cookieless_mode: 'on_reject',
+                opt_out_capturing_by_default: true,
+            })
+            await delay(1)
+            posthog.capture(eventName, eventProperties)
+
+            expect(beforeSendMock).toHaveBeenCalled()
+            expect(posthog.persistence?._disabled).toBe(true)
+            expect(document.cookie).toEqual('')
+        })
+
+        it('should still send nothing while pending without opt_out_capturing_by_default', async () => {
+            const { posthog, beforeSendMock } = await setup({
+                cookieless_mode: 'on_reject',
+            })
+            await delay(1)
+            posthog.capture(eventName, eventProperties)
+
+            expect(beforeSendMock).not.toHaveBeenCalled()
         })
 
         it('should restart the request queue when opting in', async () => {
